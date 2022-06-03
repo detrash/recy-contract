@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 import "./erc20.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract Vendor {
+contract Vendor is Ownable,ReentrancyGuard,Pausable{
 
 //EVENTOS
 
@@ -13,59 +16,64 @@ contract Vendor {
 // PRICE PERBACTH
     uint256  public PricecRecy;
 
-
 //TOTAL SOLD
     uint256 public totalSold;
 
-
-//TOTAL SOLD PER BACTH
-
-    bool public isPause;
-
 //Total MWP per address
-    mapping (address => uint256) public totalTokens;
+
+    mapping(address => uint) public purchaseOrder;
 
 //ROLES
-    event FailWithdraw(uint ownerBalance, address sender);
-    event FailBuyTokens(address account,uint256 value);
-    event InsufficientTokens(uint indexed vendorBalance, uint indexed totalTokens);
+    event Pause();
+    event unPause();
+    event BuycRecy(address account, uint Celo, uint _cRecy);
+    
+    error FailWithdraw(uint ownerBalance, address sender);
+    error FailBuyTokens(address account,uint256 value);
+    error InsufficientTokens(uint  vendorBalance, uint cRecy);
+
+
 //Constructor, cria interface token, seta roles
     constructor(address mwpAddress){
     cRecy = MyToken(mwpAddress);
     setPricecRecy(7*10**17);
     }
 
-    function setPricecRecy(uint _price)public{
+    function pause() public onlyOwner {
+        _pause();
+        emit Pause();
+    }
+
+    function unpause() public onlyOwner {
+        _unpause();
+        emit unPause();
+    }
+
+    function setPricecRecy(uint _price) public onlyOwner {
         PricecRecy=_price;
-    }
-
-    function setIsPause() public{
-        isPause = true;
-    }
-
-    modifier notPause(){
-        require(isPause == false, "Contract is Pause");
-        _;
     }
 
     function TokensperCelo() public view returns (uint){
         return 10**36/PricecRecy;
     }
 
-    function Tokens(uint ammount) public view returns(uint){
+    function amountcRecy(uint ammount) public view returns(uint){
         return (ammount*TokensperCelo()/10**18);
     }
 
-    function BuyTokens() public payable{
-        uint _tokens = Tokens(msg.value);
+    function BuyTokens() public payable nonReentrant whenNotPaused {
+        uint _cRecy = amountcRecy(msg.value);
         uint256 vendorBalance = cRecy.balanceOf(address(this));
-
-        (bool sent) = cRecy.transfer(msg.sender, _tokens);
-        //Caso falhe lançar um evento
-        if(sent == false){
-            emit FailBuyTokens(msg.sender,_tokens);
+        if(vendorBalance < _cRecy){
+            revert InsufficientTokens(vendorBalance, _cRecy);
         }
-        require(sent, "Failed to transfer token to user");
+        (bool sent) = cRecy.transfer(msg.sender, _cRecy);
+        if(sent == false){
+            revert FailBuyTokens(msg.sender, _cRecy);
+        }
+        purchaseOrder[msg.sender]+=_cRecy;
+        totalSold+=_cRecy;
+        emit BuycRecy(msg.sender, msg.value, _cRecy);
     }
 
 
@@ -76,12 +84,12 @@ contract Vendor {
     }
 
 
-    function withdraw() public notPause{
+    function withdraw() public whenNotPaused onlyOwner {
         uint256 ownerBalance = address(this).balance;
         require(ownerBalance > 0, "Owner has not balance to withdraw");
         (bool sent,) = msg.sender.call{value: address(this).balance}("");
         if(sent == false){
-            emit FailWithdraw(ownerBalance, msg.sender);
+            revert FailWithdraw(ownerBalance, msg.sender);
         }
         require(sent, "Failed to send user balance back to the owner");
   }
