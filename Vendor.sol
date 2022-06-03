@@ -13,7 +13,7 @@ contract Vendor is Ownable,ReentrancyGuard,Pausable{
 
     MyToken cRecy;
 
-// PRICE PERBACTH
+// PRICE 
     uint256  public PricecRecy;
 
 //TOTAL SOLD
@@ -23,7 +23,6 @@ contract Vendor is Ownable,ReentrancyGuard,Pausable{
 
     mapping(address => uint) public purchaseOrder;
 
-//ROLES
     event Pause();
     event unPause();
     event BuycRecy(address account, uint Celo, uint _cRecy);
@@ -32,8 +31,6 @@ contract Vendor is Ownable,ReentrancyGuard,Pausable{
     error FailBuyTokens(address account,uint256 value);
     error InsufficientTokens(uint  vendorBalance, uint cRecy);
 
-
-//Constructor, cria interface token, seta roles
     constructor(address mwpAddress){
     cRecy = MyToken(mwpAddress);
     setPricecRecy(7*10**17);
@@ -76,13 +73,10 @@ contract Vendor is Ownable,ReentrancyGuard,Pausable{
         emit BuycRecy(msg.sender, msg.value, _cRecy);
     }
 
-
-
     function getBalancecRecyWContract() public view returns(uint256){
         uint256 vendorBalance = cRecy.balanceOf(address(this));
         return vendorBalance;
     }
-
 
     function withdraw() public whenNotPaused onlyOwner {
         uint256 ownerBalance = address(this).balance;
