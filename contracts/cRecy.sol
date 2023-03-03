@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Capped.sol";
 
-contract MyToken is ERC20Capped, ERC20Burnable, Pausable, Ownable {
+contract cRecy is ERC20Capped, ERC20Burnable, Pausable, Ownable {
 
 
     constructor(uint256 cap, uint256 initialSupply) ERC20("cRECY", "cRECY") ERC20Capped(cap*10**18){
