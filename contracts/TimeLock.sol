@@ -28,6 +28,8 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
         private _allowedEmergencyUnlocks;
     mapping(address => uint256) private _lockCount;
     mapping(uint256 => address) private _lockersByInidex;
+    mapping(address => bool) private _blocked;
+
     uint256 private _totalLockers;
     uint256 private _totalLocked;
     uint256 private _totalUnlocked;
@@ -42,16 +44,24 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
     error InvalidLockAmount();
     error InvalidTime();
     error AlreadyUnlocked();
+    error Blocked();
 
     constructor(address _cRECY) {
         cRECY = CRecy(_cRECY);
+    }
+
+    modifier notBlocked() {
+        if (_blocked[msg.sender]) {
+            revert Blocked();
+        }
+        _;
     }
 
     /**
      * @dev Lock cRECY token
      * @param amount amount to lock
      */
-    function lock(uint256 amount) public whenNotPaused nonReentrant {
+    function lock(uint256 amount) public whenNotPaused nonReentrant notBlocked {
         if (amount < minLockAmount) {
             revert InvalidLockAmount();
         }
@@ -91,7 +101,7 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
     function unlock(
         uint256 _lockIndex,
         bool _emergencyUnlock
-    ) public whenNotPaused nonReentrant {
+    ) public whenNotPaused nonReentrant notBlocked {
         if (_emergencyUnlock) {
             if (!_canEmergencyUnlock(msg.sender, _lockIndex)) {
                 revert InvalidTime();
@@ -152,5 +162,20 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
 
     function unpause() public onlyOwner {
         _unpause();
+    }
+
+    function setBlocked(
+        address[] memory _users,
+        bool[] memory _statuses
+    ) public onlyOwner {
+        require(_users.length == _statuses.length);
+        uint256 len = _users.length;
+        for (uint i = 0; i < len; ) {
+            _blocked[_users[i]] = _statuses[i];
+
+            unchecked {
+                ++i;
+            }
+        }
     }
 }
