@@ -37,8 +37,6 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
     uint256 private _totalUnlocked;
 
     address public signer;
-    // Signature check is disabled by default
-    bool private _signatureCheckEnabled;
 
     event LockFunds(address indexed owner, uint256 amount, uint256 lockTime);
     event UnlockFunds(
@@ -60,10 +58,9 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
         _;
     }
 
-    constructor(address _cRECY, address _deTrashCertificate, address _signer) {
+    constructor(address _cRECY, address _deTrashCertificate) {
         cRECY = CRecy(_cRECY);
         deTrashCertificate = DeTrashCertificate(_deTrashCertificate);
-        signer = _signer;
     }
 
     /**
@@ -80,7 +77,7 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
         uint256 lockTime = block.timestamp;
         uint256 lockIndexByUser = _lockCount[msg.sender];
 
-        if (_signatureCheckEnabled) {
+        if (signer != address(0x0)) {
             // Validate signature
             bytes32 message = keccak256(
                 abi.encodePacked(lockIndexByUser, amount)
@@ -129,11 +126,13 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
             if (!_canEmergencyUnlock(msg.sender, _lockIndex)) {
                 revert InvalidTime();
             }
-            _onEmergencyUnlock(msg.sender, _lockIndex);
-        } else if (!_canUnlock(msg.sender, _lockIndex)) {
-            revert InvalidTime();
+        } else {
+            if (!_canUnlock(msg.sender, _lockIndex)) {
+                revert InvalidTime();
+            }
         }
 
+        _onUnlock(msg.sender, _lockIndex, _emergencyUnlock);
         _unlockUnChecked(msg.sender, _lockIndex);
     }
 
@@ -193,11 +192,11 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Enables or disables the signature check for a specific operation.
-     * @param _enabled A boolean value indicating whether the signature check should be enabled or disabled.
+     * @dev Set the signer address.
+     * @param _signer The address of the signer to be set.
      */
-    function setSignatureCheckEnabled(bool _enabled) external onlyOwner {
-        _signatureCheckEnabled = _enabled;
+    function setSigner(address _signer) external onlyOwner {
+        signer = _signer;
     }
 
     /**
@@ -354,11 +353,17 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
         }
     }
 
-    function _onEmergencyUnlock(address _user, uint256 _lockIndex) internal {
-        uint256 balance = deTrashCertificate.balanceOf(_user);
+    function _onUnlock(
+        address _user,
+        uint256 _lockIndex,
+        bool emergencyUnlock
+    ) internal {
+        if (emergencyUnlock) {
+            uint256 balance = deTrashCertificate.balanceOf(_user);
 
-        if (balance > 0) {
-            deTrashCertificate.burn(_user);
+            if (balance > 0) {
+                deTrashCertificate.burn(_user);
+            }
         }
     }
 
