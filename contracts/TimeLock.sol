@@ -37,6 +37,8 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
     uint256 private _totalUnlocked;
 
     address public signer;
+    // Signature check is disabled by default
+    bool private _signatureCheckEnabled;
 
     event LockFunds(address indexed owner, uint256 amount, uint256 lockTime);
     event UnlockFunds(
@@ -78,13 +80,17 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
         uint256 lockTime = block.timestamp;
         uint256 lockIndexByUser = _lockCount[msg.sender];
 
-        // Validate signature
-        bytes32 message = keccak256(abi.encodePacked(lockIndexByUser, amount));
-        bytes32 messageHash = ECDSA.toEthSignedMessageHash(message);
-        address _signer = ECDSA.recover(messageHash, _signature);
+        if (_signatureCheckEnabled) {
+            // Validate signature
+            bytes32 message = keccak256(
+                abi.encodePacked(lockIndexByUser, amount)
+            );
+            bytes32 messageHash = ECDSA.toEthSignedMessageHash(message);
+            address _signer = ECDSA.recover(messageHash, _signature);
 
-        if (_signer != signer) {
-            revert InvalidSignature();
+            if (_signer != signer) {
+                revert InvalidSignature();
+            }
         }
 
         Lock memory _lock = Lock({
@@ -184,6 +190,14 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
      */
     function setMinLockAmount(uint256 _minLockAmount) external onlyOwner {
         minLockAmount = _minLockAmount;
+    }
+
+    /**
+     * @dev Enables or disables the signature check for a specific operation.
+     * @param _enabled A boolean value indicating whether the signature check should be enabled or disabled.
+     */
+    function setSignatureCheckEnabled(bool _enabled) external onlyOwner {
+        _signatureCheckEnabled = _enabled;
     }
 
     /**
