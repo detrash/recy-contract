@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import {CRecy} from "./CRecy.sol";
 
@@ -34,6 +35,8 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
     uint256 private _totalLocked;
     uint256 private _totalUnlocked;
 
+    address public signer;
+
     event LockFunds(address indexed owner, uint256 amount, uint256 lockTime);
     event UnlockFunds(
         address indexed owner,
@@ -45,9 +48,11 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
     error InvalidTime();
     error AlreadyUnlocked();
     error Blocked();
+    error InvalidSignature();
 
-    constructor(address _cRECY) {
+    constructor(address _cRECY, address _signer) {
         cRECY = CRecy(_cRECY);
+        signer = _signer;
     }
 
     modifier notBlocked() {
@@ -61,13 +66,24 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
      * @dev Lock cRECY token
      * @param amount amount to lock
      */
-    function lock(uint256 amount) public whenNotPaused nonReentrant notBlocked {
+    function lock(
+        uint256 amount,
+        bytes memory _signature
+    ) public whenNotPaused nonReentrant notBlocked {
         if (amount < minLockAmount) {
             revert InvalidLockAmount();
         }
-
         uint256 lockTime = block.timestamp;
         uint256 lockIndexByUser = _lockCount[msg.sender];
+
+        // Validate signature
+        bytes32 message = keccak256(abi.encodePacked(lockIndexByUser, amount));
+        bytes32 messageHash = ECDSA.toEthSignedMessageHash(message);
+        address _signer = ECDSA.recover(messageHash, _signature);
+
+        if (_signer != signer) {
+            revert InvalidSignature();
+        }
 
         Lock memory _lock = Lock({
             owner: msg.sender,
@@ -106,7 +122,7 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
             if (!_canEmergencyUnlock(msg.sender, _lockIndex)) {
                 revert InvalidTime();
             }
-            // TODO
+            _onEmergencyUnlock(msg.sender, _lockIndex);
         } else if (!_canUnlock(msg.sender, _lockIndex)) {
             revert InvalidTime();
         }
@@ -177,5 +193,60 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
                 ++i;
             }
         }
+    }
+
+    function setLockPeriod(
+        uint256 _lockPeriod,
+        uint256 _emergencyLockPeriod
+    ) public onlyOwner {
+        lockPeriod = _lockPeriod;
+        emergencyLockPeriod = _emergencyLockPeriod;
+    }
+
+    function setMinLockAmount(uint256 _minLockAmount) public onlyOwner {
+        minLockAmount = _minLockAmount;
+    }
+
+    function getUserLastLock(address user) public view returns (Lock memory) {
+        return _locks[user][_lockCount[user] - 1];
+    }
+
+    function getUserLocks(address user) public view returns (Lock[] memory) {
+        uint256 len = _lockCount[user];
+        Lock[] memory locks = new Lock[](len);
+        for (uint256 i = 0; i < len; i++) {
+            locks[i] = _locks[user][i];
+        }
+        return locks;
+    }
+
+    function getLockerByIndex(uint256 index) public view returns (address) {
+        return _lockersByInidex[index];
+    }
+
+    function canUnlock(
+        address user,
+        uint256 lockIndex
+    ) public view returns (bool) {
+        return _canUnlock(user, lockIndex);
+    }
+
+    function canEmergencyUnlock(
+        address user,
+        uint256 lockIndex
+    ) public view returns (bool) {
+        return _canEmergencyUnlock(user, lockIndex);
+    }
+
+    function getTotalLockers() public view returns (uint256) {
+        return _totalLockers;
+    }
+
+    function getTotalLocked() public view returns (uint256) {
+        return _totalLocked;
+    }
+
+    function getTotalUnlocked() public view returns (uint256) {
+        return _totalUnlocked;
     }
 }
