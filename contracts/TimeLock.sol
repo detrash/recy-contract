@@ -19,7 +19,6 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
     DeTrashCertificate public immutable deTrashCertificate;
 
     struct Lock {
-        address owner;
         uint256 amount;
         uint256 lockTime;
         uint256 unlockedAt;
@@ -89,7 +88,6 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
         }
 
         Lock memory _lock = Lock({
-            owner: msg.sender,
             amount: amount,
             lockTime: lockTime,
             unlockedAt: 0
