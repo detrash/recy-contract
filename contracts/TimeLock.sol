@@ -7,6 +7,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import {CRecy} from "./CRecy.sol";
+import {DeTrashCertificate} from "./ERC721Certificate.sol";
 
 contract TimeLock is Pausable, Ownable, ReentrancyGuard {
     uint256 public lockPeriod = 2 * 365 days; // 2 years
@@ -15,6 +16,7 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
     uint256 public minLockAmount = 100 * 10 ** 18; // 100 cRECY
 
     CRecy public immutable cRECY;
+    DeTrashCertificate public immutable deTrashCertificate;
 
     struct Lock {
         address owner;
@@ -57,8 +59,9 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
         _;
     }
 
-    constructor(address _cRECY, address _signer) {
+    constructor(address _cRECY, address _deTrashCertificate, address _signer) {
         cRECY = CRecy(_cRECY);
+        deTrashCertificate = DeTrashCertificate(_deTrashCertificate);
         signer = _signer;
     }
 
@@ -307,9 +310,21 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
 
     function _beforeLock(Lock memory _lock) internal {}
 
-    function _afterLock(Lock memory _lock) internal {}
+    function _afterLock(Lock memory _lock) internal {
+        uint256 balance = deTrashCertificate.balanceOf(_msgSender());
 
-    function _onEmergencyUnlock(address _user, uint256 _lockIndex) internal {}
+        if (balance == 0) {
+            deTrashCertificate.mint(_msgSender());
+        }
+    }
+
+    function _onEmergencyUnlock(address _user, uint256 _lockIndex) internal {
+        uint256 balance = deTrashCertificate.balanceOf(_user);
+
+        if (balance > 0) {
+            deTrashCertificate.burn(_user);
+        }
+    }
 
     function _canUnlock(
         address _user,
