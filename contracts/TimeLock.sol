@@ -50,16 +50,16 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
     error Blocked();
     error InvalidSignature();
 
-    constructor(address _cRECY, address _signer) {
-        cRECY = CRecy(_cRECY);
-        signer = _signer;
-    }
-
     modifier notBlocked() {
         if (_blocked[msg.sender]) {
             revert Blocked();
         }
         _;
+    }
+
+    constructor(address _cRECY, address _signer) {
+        cRECY = CRecy(_cRECY);
+        signer = _signer;
     }
 
     /**
@@ -69,7 +69,7 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
     function lock(
         uint256 amount,
         bytes memory _signature
-    ) public whenNotPaused nonReentrant notBlocked {
+    ) external whenNotPaused nonReentrant notBlocked {
         if (amount < minLockAmount) {
             revert InvalidLockAmount();
         }
@@ -117,7 +117,7 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
     function unlock(
         uint256 _lockIndex,
         bool _emergencyUnlock
-    ) public whenNotPaused nonReentrant notBlocked {
+    ) external whenNotPaused nonReentrant notBlocked {
         if (_emergencyUnlock) {
             if (!_canEmergencyUnlock(msg.sender, _lockIndex)) {
                 revert InvalidTime();
@@ -130,60 +130,29 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
         _unlockUnChecked(msg.sender, _lockIndex);
     }
 
-    function _unlockUnChecked(address _user, uint256 _lockIndex) internal {
-        if (_locks[_user][_lockIndex].unlockedAt > 0) {
-            revert AlreadyUnlocked();
-        }
-
-        uint256 lockAmount = _locks[_user][_lockIndex].amount;
-
-        cRECY.transfer(_user, lockAmount);
-
-        uint256 unlockTime = block.timestamp;
-
-        _locks[_user][_lockIndex].unlockedAt = unlockTime;
-        _totalLocked -= lockAmount;
-        _totalUnlocked += lockAmount;
-
-        emit UnlockFunds(_user, lockAmount, unlockTime);
-    }
-
-    function _canUnlock(
-        address _user,
-        uint256 _lockIndex
-    ) internal view returns (bool) {
-        return
-            _locks[_user][_lockIndex].lockTime + lockPeriod < block.timestamp;
-    }
-
-    function _canEmergencyUnlock(
-        address _user,
-        uint256 _lockIndex
-    ) internal view returns (bool) {
-        return
-            _allowedEmergencyUnlocks[msg.sender][_lockIndex] &&
-            _locks[_user][_lockIndex].lockTime + emergencyLockPeriod <
-            block.timestamp;
-    }
-
-    function _beforeLock(Lock memory _lock) internal {}
-
-    function _afterLock(Lock memory _lock) internal {}
-
-    function _onEmergencyUnlock(address _user, uint256 _lockIndex) internal {}
-
-    function pause() public onlyOwner {
+    /**
+     * @dev Pause the contract
+     */
+    function pause() external onlyOwner {
         _pause();
     }
 
-    function unpause() public onlyOwner {
+    /**
+     * @dev Unpause the contract
+     */
+    function unpause() external onlyOwner {
         _unpause();
     }
 
+    /**
+     * @dev Add or remove user from block list
+     * @param _users The array of addresses representing the users to be added or removed from the block list.
+     * @param _statuses The array of booleans representing the statuses indicating whether to block or unblock the corresponding user.
+     */
     function setBlocked(
         address[] memory _users,
         bool[] memory _statuses
-    ) public onlyOwner {
+    ) external onlyOwner {
         require(_users.length == _statuses.length);
         uint256 len = _users.length;
         for (uint i = 0; i < len; ) {
@@ -195,22 +164,74 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
         }
     }
 
+    /**
+     * @dev Set lock periods
+     * @param _lockPeriod the duration of the lock period in seconds.
+     * @param _emergencyLockPeriod the duration of the emergency lock period in seconds.
+     */
     function setLockPeriod(
         uint256 _lockPeriod,
         uint256 _emergencyLockPeriod
-    ) public onlyOwner {
+    ) external onlyOwner {
         lockPeriod = _lockPeriod;
         emergencyLockPeriod = _emergencyLockPeriod;
     }
 
-    function setMinLockAmount(uint256 _minLockAmount) public onlyOwner {
+    /**
+     * @dev Set minimum lock amount
+     * @param _minLockAmount minimum amount to lock
+     */
+    function setMinLockAmount(uint256 _minLockAmount) external onlyOwner {
         minLockAmount = _minLockAmount;
     }
 
+    /**
+     * @dev Return the last lock of the user.
+     * @param user The address of the user to query.
+     */
     function getUserLastLock(address user) public view returns (Lock memory) {
         return _locks[user][_lockCount[user] - 1];
     }
 
+    /**
+     * @dev Return the lock count of the user.
+     * @param user The address of the user to query.
+     */
+    function getUserTotalLockCount(address user) public view returns (uint256) {
+        return _lockCount[user];
+    }
+
+    /**
+     * @dev Return the pending locks of the user.
+     * @param user The address of the user to query.
+     */
+    function getUserPendingLockIndexes(
+        address user
+    ) public view returns (uint256[] memory, Lock[] memory) {
+        uint256 len = _lockCount[user];
+        uint256 pendingLocksCount;
+        for (uint256 i = 0; i < len; i++) {
+            if (_locks[user][i].unlockedAt == 0) {
+                ++pendingLocksCount;
+            }
+        }
+        Lock[] memory locks = new Lock[](pendingLocksCount);
+        uint256[] memory lockIndexes = new uint256[](pendingLocksCount);
+        uint256 j;
+        for (uint256 i = 0; i < len; i++) {
+            if (_locks[user][i].unlockedAt == 0) {
+                locks[j] = _locks[user][i];
+                lockIndexes[j] = i;
+                ++j;
+            }
+        }
+        return (lockIndexes, locks);
+    }
+
+    /**
+     * @dev Return the locks of the user.
+     * @param user The address of the user to query.
+     */
     function getUserLocks(address user) public view returns (Lock[] memory) {
         uint256 len = _lockCount[user];
         Lock[] memory locks = new Lock[](len);
@@ -220,6 +241,22 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
         return locks;
     }
 
+    /**
+     * @dev Return the lock of the user.
+     * @param user The address of the user to query.
+     * @param index The index of the lock
+     */
+    function getUserLockByIndex(
+        address user,
+        uint256 index
+    ) public view returns (Lock memory) {
+        return _locks[user][index];
+    }
+
+    /**
+     * @dev Return the locker by index.
+     * @param index The index of the locker to query.
+     */
     function getLockerByIndex(uint256 index) public view returns (address) {
         return _lockersByInidex[index];
     }
@@ -248,5 +285,47 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
 
     function getTotalUnlocked() public view returns (uint256) {
         return _totalUnlocked;
+    }
+
+    function _unlockUnChecked(address _user, uint256 _lockIndex) internal {
+        if (_locks[_user][_lockIndex].unlockedAt > 0) {
+            revert AlreadyUnlocked();
+        }
+
+        uint256 lockAmount = _locks[_user][_lockIndex].amount;
+
+        cRECY.transfer(_user, lockAmount);
+
+        uint256 unlockTime = block.timestamp;
+
+        _locks[_user][_lockIndex].unlockedAt = unlockTime;
+        _totalLocked -= lockAmount;
+        _totalUnlocked += lockAmount;
+
+        emit UnlockFunds(_user, lockAmount, unlockTime);
+    }
+
+    function _beforeLock(Lock memory _lock) internal {}
+
+    function _afterLock(Lock memory _lock) internal {}
+
+    function _onEmergencyUnlock(address _user, uint256 _lockIndex) internal {}
+
+    function _canUnlock(
+        address _user,
+        uint256 _lockIndex
+    ) internal view returns (bool) {
+        return
+            _locks[_user][_lockIndex].lockTime + lockPeriod < block.timestamp;
+    }
+
+    function _canEmergencyUnlock(
+        address _user,
+        uint256 _lockIndex
+    ) internal view returns (bool) {
+        return
+            _allowedEmergencyUnlocks[msg.sender][_lockIndex] &&
+            _locks[_user][_lockIndex].lockTime + emergencyLockPeriod <
+            block.timestamp;
     }
 }
