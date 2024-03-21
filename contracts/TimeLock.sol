@@ -276,6 +276,12 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
         return _lockersByInidex[index];
     }
 
+    /**
+     * @dev Checks if a user can unlock a specific lock.
+     * @param user The address of the user to check.
+     * @param lockIndex The index of the lock to check.
+     * @return A boolean indicating whether the user can unlock the lock.
+     */
     function canUnlock(
         address user,
         uint256 lockIndex
@@ -283,6 +289,12 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
         return _canUnlock(user, lockIndex);
     }
 
+    /**
+     * @dev Checks if an emergency unlock can be performed by a user for a specific lock.
+     * @param user The address of the user to check.
+     * @param lockIndex The index of the lock to check.
+     * @return A boolean indicating whether the user can perform an emergency unlock.
+     */
     function canEmergencyUnlock(
         address user,
         uint256 lockIndex
@@ -290,14 +302,26 @@ contract TimeLock is Pausable, Ownable, ReentrancyGuard {
         return _canEmergencyUnlock(user, lockIndex);
     }
 
+    /**
+     * @dev Returns the total number of lockers.
+     * @return The total number of lockers.
+     */
     function getTotalLockers() public view returns (uint256) {
         return _totalLockers;
     }
 
+    /**
+     * @dev Returns the total locked cRECY amount.
+     * @return The total locked cRECY amount.
+     */
     function getTotalLocked() public view returns (uint256) {
         return _totalLocked;
     }
 
+    /**
+     * @dev Returns the total unlocked cRECY amount.
+     * @return The total unlocked cRECY amount.
+     */
     function getTotalUnlocked() public view returns (uint256) {
         return _totalUnlocked;
     }
