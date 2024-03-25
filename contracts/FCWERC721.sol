@@ -8,11 +8,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 
-contract DeTrashCertificate is
-    ERC721URIStorage,
-    ERC721Enumerable,
-    AccessControl
-{
+contract FCWERC721 is ERC721URIStorage, ERC721Enumerable, AccessControl {
     using Counters for Counters.Counter;
     Counters.Counter private _tokenIds;
 
