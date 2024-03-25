@@ -33,8 +33,8 @@ contract TimeLock is
 
     IERC20Upgradeable public cRECY;
 
-    uint256 public defaultLockPeriod = 2 * 365 days;
-    uint256 public earlyLockPeriod = 1 * 365 days;
+    uint256 public defaultLockPeriod;
+    uint256 public earlyLockPeriod;
     uint256 public totalLocked;
     uint256 public totalUnlocked;
     uint256 public totalLockers;
@@ -48,12 +48,19 @@ contract TimeLock is
     error InLockPeriod(uint256 unlockTime);
     error AlreadyUnlocked();
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function initialize(address _cRECY) external initializer {
         __Pausable_init();
         __Ownable_init();
         __ReentrancyGuard_init();
 
         cRECY = IERC20Upgradeable(_cRECY);
+        defaultLockPeriod = 2 * 365 days;
+        earlyLockPeriod = 1 * 365 days;
     }
 
     function lock(uint256 amount) external whenNotPaused nonReentrant {

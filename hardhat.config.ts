@@ -1,41 +1,42 @@
-import '@typechain/hardhat';
-import '@nomiclabs/hardhat-ethers';
-import '@nomiclabs/hardhat-etherscan';
-import 'solidity-coverage';
-import 'hardhat-abi-exporter';
-import 'hardhat-contract-sizer';
-import { HardhatUserConfig } from 'hardhat/config';
-import dotenv from 'dotenv';
+import "@typechain/hardhat";
+import "@nomiclabs/hardhat-ethers";
+import "@nomiclabs/hardhat-etherscan";
+import "solidity-coverage";
+import "hardhat-abi-exporter";
+import "hardhat-contract-sizer";
+import { HardhatUserConfig } from "hardhat/config";
+import "@openzeppelin/hardhat-upgrades";
+import dotenv from "dotenv";
 
 dotenv.config();
 
-let alchemyapi: string;
-if (!process.env.ALCHEMY_API_KEY) {
-  throw new Error("Please set your ALCHEMY_API_KEY in a .env file");
-} else {
-  alchemyapi = process.env.ALCHEMY_API_KEY;
-}
-
 const config: HardhatUserConfig = {
   typechain: {
-    target: 'ethers-v5',
+    target: "ethers-v5",
   },
   solidity: {
     compilers: [
       {
-        version: '0.8.17',
+        version: "0.8.17",
         settings: {
           optimizer: {
             enabled: true,
             runs: 200,
           },
         },
-      }
+      },
     ],
   },
   networks: {
-    goerli: {
-      url: `https://eth-goerli.alchemyapi.io/v2/${alchemyapi}`,
+    alfajores: {
+      url: "https://alfajores-forno.celo-testnet.org",
+      accounts: [process.env.HARDHAT_PRIVATE_KEY!],
+      chainId: 44787,
+    },
+    celo: {
+      url: "https://forno.celo.org",
+      accounts: [process.env.HARDHAT_PRIVATE_KEY!],
+      chainId: 42220,
     },
   },
   abiExporter: {
@@ -52,11 +53,32 @@ const config: HardhatUserConfig = {
     strict: false,
   },
   etherscan: {
-    apiKey: process.env.ETHERSCAN_API_KEY
+    apiKey: {
+      alfajores: process.env.CELOSCAN_API_KEY!,
+      celo: process.env.CELOSCAN_API_KEY!,
+    },
+    customChains: [
+      {
+        network: "alfajores",
+        chainId: 44787,
+        urls: {
+          apiURL: "https://api-alfajores.celoscan.io/api",
+          browserURL: "https://alfajores.celoscan.io",
+        },
+      },
+      {
+        network: "celo",
+        chainId: 42220,
+        urls: {
+          apiURL: "https://api.celoscan.io/api",
+          browserURL: "https://celoscan.io/",
+        },
+      },
+    ],
   },
   mocha: {
-    timeout: 100000000
-  }
+    timeout: 100000000,
+  },
 };
 
 export default config;
