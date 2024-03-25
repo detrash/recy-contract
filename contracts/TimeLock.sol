@@ -62,7 +62,7 @@ contract TimeLock is
         _lock(_msgSender(), amount);
     }
 
-    function unlock(uint256 lockIndex) external {
+    function unlock(uint256 lockIndex) external whenNotPaused nonReentrant {
         _unlock(_msgSender(), lockIndex);
     }
 
@@ -103,6 +103,11 @@ contract TimeLock is
         }
 
         return (lockIndexes, locks, _totalLocked, _totalUnlocked);
+    }
+
+    function getUserLastLock(address user) public view returns (Lock memory) {
+        uint256 lockCount = _userLocks[user].lockCount;
+        return _userLocks[user].locks[lockCount - 1];
     }
 
     function _registerLocker(address _user) private {
