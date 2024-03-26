@@ -81,6 +81,22 @@ contract TimeLock is
         _unpause();
     }
 
+    function setEarlyWithdrawal(
+        address user,
+        uint256 index,
+        bool allowed
+    ) external onlyOwner {
+        _userLocks[user].locks[index].earlyWithdrawalAllowed = allowed;
+    }
+
+    function setLockPeriods(
+        uint256 defaultLockPeriodInDays,
+        uint256 earlyLockPeriodInDays
+    ) external onlyOwner {
+        defaultLockPeriod = defaultLockPeriodInDays * 1 days;
+        earlyLockPeriod = earlyLockPeriodInDays * 1 days;
+    }
+
     function getUserLocks(
         address user
     )
