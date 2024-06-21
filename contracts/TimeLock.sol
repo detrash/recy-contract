@@ -6,9 +6,14 @@ import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import {SafeERC20Upgradeable, IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
-// import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
+/**
+ * @title TimeLock contract for cRECY ERC20 token
+ * @author Edward Lee - [neddy34](https://github.com/neddy34)
+ * @notice This contract is used to lock cRECY tokens for a period of time.
+ * Currently only locks the token, additional features like staking and rewards will be added in the future.
+ */
 contract TimeLock is
     Initializable,
     PausableUpgradeable,
@@ -63,24 +68,44 @@ contract TimeLock is
         earlyLockPeriod = 1 * 365 days;
     }
 
+    /**
+     * @notice Lock cRECY tokens for a period of time
+     * @param amount token amount to lock
+     */
     function lock(uint256 amount) external whenNotPaused nonReentrant {
         _registerLocker(_msgSender());
 
         _lock(_msgSender(), amount);
     }
 
+    /**
+     * @notice Unlock cRECY tokens
+     * @param lockIndex index of the lock to unlock
+     */
     function unlock(uint256 lockIndex) external whenNotPaused nonReentrant {
         _unlock(_msgSender(), lockIndex);
     }
 
+    /**
+     * @notice Pause the contract
+     */
     function pause() public onlyOwner {
         _pause();
     }
 
+    /**
+     * @notice Unpause the contract
+     */
     function unpause() public onlyOwner {
         _unpause();
     }
 
+    /**
+     * @notice Set early withdrawal allowed for a lock
+     * @param user address of the user
+     * @param index index of the lock
+     * @param allowed true if early withdrawal is allowed
+     */
     function setEarlyWithdrawal(
         address user,
         uint256 index,
@@ -89,6 +114,11 @@ contract TimeLock is
         _userLocks[user].locks[index].earlyWithdrawalAllowed = allowed;
     }
 
+    /**
+     * @notice Set lock periods
+     * @param defaultLockPeriodInDays new default lock period in days
+     * @param earlyLockPeriodInDays new early lock period in days
+     */
     function setLockPeriods(
         uint256 defaultLockPeriodInDays,
         uint256 earlyLockPeriodInDays
@@ -97,6 +127,14 @@ contract TimeLock is
         earlyLockPeriod = earlyLockPeriodInDays * 1 days;
     }
 
+    /**
+     * @notice Get user locks
+     * @param user address of the user
+     * @return lockIndexes array of lock indexes
+     * @return locks array of locks
+     * @return _totalLocked total locked amount
+     * @return _totalUnlocked total unlocked amount
+     */
     function getUserLocks(
         address user
     )
@@ -128,6 +166,10 @@ contract TimeLock is
         return (lockIndexes, locks, _totalLocked, _totalUnlocked);
     }
 
+    /**
+     * @notice Get user last lock
+     * @param user address of the user
+     */
     function getUserLastLock(address user) public view returns (Lock memory) {
         uint256 lockCount = _userLocks[user].lockCount;
         return _userLocks[user].locks[lockCount - 1];

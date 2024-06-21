@@ -8,6 +8,11 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 
+/**
+ * @title Friend of Clean World Certificate ERC721 contract
+ * @author Edward Lee - [neddy34](https://github.com/neddy34)
+ * @notice This contract is used to mint and burn NFTs for the Friend of Clean World Certificate.
+ */
 contract FCWERC721 is ERC721URIStorage, ERC721Enumerable, AccessControl {
     using Counters for Counters.Counter;
     Counters.Counter private _tokenIds;
@@ -26,6 +31,10 @@ contract FCWERC721 is ERC721URIStorage, ERC721Enumerable, AccessControl {
         _setupRole(BURNER_ROLE, _msgSender());
     }
 
+    /**
+     * @notice Mint a new NFT for the recipient.
+     * @param recipient The address of the recipient of the NFT.
+     */
     function mint(
         address recipient
     ) public onlyRole(MINTER_ROLE) returns (uint256) {
@@ -49,16 +58,29 @@ contract FCWERC721 is ERC721URIStorage, ERC721Enumerable, AccessControl {
         return newItemId;
     }
 
+    /**
+     * @notice Burn an NFT by its token ID.
+     * @param tokenId The ID of the NFT to burn.
+     */
     function burnByTokenId(uint256 tokenId) public onlyRole(BURNER_ROLE) {
         _burn(tokenId);
     }
 
+    /**
+     * @notice Burn an NFT by the user's address.
+     * @param user The address of the user to burn.
+     */
     function burn(address user) public onlyRole(BURNER_ROLE) {
         uint256 tokenId = tokenOfOwnerByIndex(user, 0);
 
         _burn(tokenId);
     }
 
+    /**
+     * @notice Change the base URI and extension for the NFTs.
+     * @param _newBaseURI The new base URI for the NFTs.
+     * @param _baseExtension The new base extension for the NFTs.
+     */
     function setURIOptions(
         string memory _newBaseURI,
         string memory _baseExtension
@@ -94,6 +116,10 @@ contract FCWERC721 is ERC721URIStorage, ERC721Enumerable, AccessControl {
         super._burn(tokenId);
     }
 
+    /**
+     * @notice Get the URI for the NFT with the given ID.
+     * @param tokenId The ID of the NFT to get the URI for.
+     */
     function tokenURI(
         uint256 tokenId
     ) public view override(ERC721, ERC721URIStorage) returns (string memory) {

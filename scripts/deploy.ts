@@ -37,6 +37,11 @@ async function main() {
       isProxy: false,
     },
     {
+      name: "FCWERC721",
+      args: [],
+      isProxy: false,
+    },
+    {
       name: "TimeLock",
       args: ["0xf64C1a07144B22cdD109d5b82004aEd4759114c4"],
       isProxy: true,
