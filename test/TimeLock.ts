@@ -1,6 +1,4 @@
 import { ethers, upgrades } from "hardhat";
-
-import { TimeLock } from "../typechain-types";
 import { expect } from "chai";
 
 describe("TimeLock", function () {
@@ -12,9 +10,9 @@ describe("TimeLock", function () {
     const cRECY = await CRecy.deploy(1000, 1000);
 
     const deTrashCertificate = await FCWERC721__factory.deploy();
-    const timeLock = (await upgrades.deployProxy(TimeLock__factory, [
-      cRECY.address,
-    ])) as TimeLock;
+    const timeLock = await upgrades.deployProxy(TimeLock__factory, [
+      await cRECY.getAddress(),
+    ]);
 
     return { cRECY, deTrashCertificate, timeLock };
   }
@@ -26,17 +24,19 @@ describe("TimeLock", function () {
   it("should lock token", async () => {
     const { cRECY, timeLock } = await deployFixture();
 
-    await cRECY.approve(timeLock.address, 500);
+    await cRECY.approve(timeLock.getAddress(), 500);
     await timeLock.lock(500);
   });
 
   it("should unlock token", async () => {
     const { cRECY, timeLock } = await deployFixture();
 
-    await cRECY.approve(timeLock.address, 500);
+    await cRECY.approve(timeLock.getAddress(), 500);
     await timeLock.lock(500);
 
-    // TODO
-    // await expect(timeLock.unlock(500)).to.be.revertedWith(`AlreadyListed`);
+    await expect(timeLock.unlock(500)).to.be.revertedWithCustomError(
+      timeLock,
+      "InLockPeriod"
+    );
   });
 });

@@ -1,5 +1,6 @@
 import "@typechain/hardhat";
-import "@nomiclabs/hardhat-ethers";
+import "@nomicfoundation/hardhat-ethers";
+import "@nomicfoundation/hardhat-chai-matchers";
 import "@nomiclabs/hardhat-etherscan";
 import "solidity-coverage";
 import "hardhat-abi-exporter";
@@ -12,7 +13,7 @@ dotenv.config();
 
 const config: HardhatUserConfig = {
   typechain: {
-    target: "ethers-v5",
+    target: "ethers-v6",
   },
   solidity: {
     compilers: [
