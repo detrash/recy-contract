@@ -1,7 +1,8 @@
 import "@typechain/hardhat";
 import "@nomicfoundation/hardhat-ethers";
 import "@nomicfoundation/hardhat-chai-matchers";
-import "@nomiclabs/hardhat-etherscan";
+import "@nomicfoundation/hardhat-ignition-ethers";
+import "@nomicfoundation/hardhat-verify";
 import "solidity-coverage";
 import "hardhat-abi-exporter";
 import "hardhat-contract-sizer";

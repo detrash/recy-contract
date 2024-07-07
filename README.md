@@ -24,14 +24,30 @@ This project is bootstrapped with Hardhad, a development environment for Ethereu
 
 ## Deploy
 
-1. Configure required environment variables in `.env` file
+1. Contracts can be deployed on any EVM network. To deploy contracts, you need to set up a `.env` file with the following variables
 
    ```bash
-   cp .env.example .env
+   HARDHAT_PRIVATE_KEY=0x...
    ```
 
-2. Deploy contracts, please check `scripts/deploy.ts` for more details
+2. Deploy contracts
+
+   > [!NOTE]
+   > Currently arguments for deployment are hardcoded in the scripts. You can change them in the scripts before deploying.
+
+   | Script            | Description                 | Arguments                  |
+   | ----------------- | --------------------------- | -------------------------- |
+   | `deploy-all`      | Deploy all contracts        |                            |
+   | `deploy-crecy`    | Deploy CRECY ERC20 contract | totalSupply, initialSupply |
+   | `deploy-fcw`      | Deploy FCW ERC721 contract  |                            |
+   | `deploy-timelock` | Deploy timelock contract    | crecy address              |
+
+   | Network     | Description      |
+   | ----------- | ---------------- |
+   | `localhost` | Hardhat localnet |
+   | `celo`      | CELO mainnet     |
+   | `alfajores` | CELO testnet     |
 
    ```bash
-   yarn deploy:testnet
+   yarn hardhat run scripts/<script>.ts --network <network>
    ```
