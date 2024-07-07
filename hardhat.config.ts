@@ -11,6 +11,8 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+const HARDHAT_PRIVATE_KEY = process.env.HARDHAT_PRIVATE_KEY;
+
 const config: HardhatUserConfig = {
   typechain: {
     target: "ethers-v6",
@@ -31,12 +33,12 @@ const config: HardhatUserConfig = {
   networks: {
     alfajores: {
       url: "https://alfajores-forno.celo-testnet.org",
-      accounts: [process.env.HARDHAT_PRIVATE_KEY!],
+      accounts: HARDHAT_PRIVATE_KEY ? [HARDHAT_PRIVATE_KEY] : undefined,
       chainId: 44787,
     },
     celo: {
       url: "https://forno.celo.org",
-      accounts: [process.env.HARDHAT_PRIVATE_KEY!],
+      accounts: HARDHAT_PRIVATE_KEY ? [HARDHAT_PRIVATE_KEY] : undefined,
       chainId: 42220,
     },
   },
