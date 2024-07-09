@@ -1,0 +1,29 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18.x"
+
+      - name: Install Dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Create local node and deploy
+        run: |
+          yarn hardhat node &
+          yarn hardhat run scripts/deploy-all.ts --network localhost
+
+      - name: Run Tests
+        run: yarn hardhat test

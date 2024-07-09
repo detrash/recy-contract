@@ -4,6 +4,7 @@ artifacts
 cache
 typechain
 build
+abi
 coverage/
 coverage.json
 typechain-types
