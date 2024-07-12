@@ -32,8 +32,8 @@ This project is bootstrapped with Hardhat, a development environment for Ethereu
 
 2. Deploy contracts
 
-   > [!NOTE]
-   > Currently arguments for deployment are hardcoded in the scripts. You can change them in the scripts before deploying.
+> [!NOTE]
+> Currently arguments for deployment are hardcoded in the scripts. You can change them in the scripts before deploying.
 
    | Script            | Description                 | Arguments                  |
    | ----------------- | --------------------------- | -------------------------- |
