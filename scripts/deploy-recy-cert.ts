@@ -3,9 +3,9 @@ import { deploy } from "./utils";
 async function main() {
   const contracts = [
     {
-      name: "TimeLock",
-      args: ["0x004c368A3fb45b0CD601e2203Fd2948D9d695a3b"],
-      isProxy: true,
+      name: "RecyCertificate",
+      args: [],
+      isProxy: false,
     },
   ];
 
