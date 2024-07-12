@@ -8,7 +8,7 @@ async function main() {
       isProxy: false,
     },
     {
-      name: "FCWERC721",
+      name: "FCWStatus",
       args: [],
       isProxy: false,
     },
