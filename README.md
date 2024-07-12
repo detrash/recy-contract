@@ -1,6 +1,6 @@
-# deTrash smart contract
+# RECY Network smart contract
 
-This project is bootstrapped with Hardhad, a development environment for Ethereum smart contracts.
+This project is bootstrapped with Hardhat, a development environment for Ethereum smart contracts.
 
 ## Development
 
@@ -51,3 +51,10 @@ This project is bootstrapped with Hardhad, a development environment for Ethereu
    ```bash
    yarn hardhat run scripts/<script>.ts --network <network>
    ```
+
+## Deployed Addresses
+
+| Contract Name      | Network | Address                                                                                                                          |
+| ------------------ | ------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| cRECY              | Celo    | [0x34C11A932853Ae24E845Ad4B633E3cEf91afE583](https://explorer.celo.org/mainnet/token/0x34C11A932853Ae24E845Ad4B633E3cEf91afE583) |
+| DeTrashCertificate | Polygon | [0xbc68c4ec4182e1d2c73b5e58bd92be9871db2230](https://polygonscan.com/token/0xbc68c4ec4182e1d2c73b5e58bd92be9871db2230)           |
