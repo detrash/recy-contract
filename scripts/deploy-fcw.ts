@@ -3,7 +3,7 @@ import { deploy } from "./utils";
 async function main() {
   const contracts = [
     {
-      name: "FCWERC721",
+      name: "FCWStatus",
       args: [],
       isProxy: false,
     },

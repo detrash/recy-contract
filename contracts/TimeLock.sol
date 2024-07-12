@@ -7,6 +7,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import {SafeERC20Upgradeable, IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "hardhat/console.sol";
 
 /**
  * @title TimeLock contract for cRECY ERC20 token
@@ -47,8 +48,18 @@ contract TimeLock is
     mapping(address => UserLock) private _userLocks;
     mapping(uint256 => address) private _lockersByIndex;
 
-    event Locked(address indexed user, uint256 amount, uint256 lockedAt);
-    event Unlocked(address indexed user, uint256 amount, uint256 unlockedAt);
+    event Locked(
+        address indexed user,
+        uint256 amount,
+        uint256 lockedAt,
+        uint256 lockIndex
+    );
+    event Unlocked(
+        address indexed user,
+        uint256 amount,
+        uint256 unlockedAt,
+        uint256 lockIndex
+    );
 
     error InLockPeriod(uint256 unlockTime);
     error AlreadyUnlocked();
@@ -199,7 +210,7 @@ contract TimeLock is
 
         totalLocked += _amount;
 
-        emit Locked(_user, _amount, lockedAt);
+        emit Locked(_user, _amount, lockedAt, lockIndex);
     }
 
     function _unlock(address _user, uint256 _lockIndex) private {
@@ -215,7 +226,8 @@ contract TimeLock is
         } else {
             unlockTime = userLock.lockedAt + defaultLockPeriod;
         }
-        if (unlockTime < block.timestamp) {
+
+        if (unlockTime > block.timestamp) {
             revert InLockPeriod(unlockTime);
         }
 
@@ -228,6 +240,6 @@ contract TimeLock is
 
         cRECY.safeTransfer(_user, userLock.amount);
 
-        emit Unlocked(_user, userLock.amount, block.timestamp);
+        emit Unlocked(_user, userLock.amount, block.timestamp, _lockIndex);
     }
 }

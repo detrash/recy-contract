@@ -16,6 +16,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: "18.x"
+          cache: "yarn"
 
       - name: Install Dependencies
         run: yarn install --frozen-lockfile
@@ -26,4 +27,12 @@ jobs:
           yarn hardhat run scripts/deploy-all.ts --network localhost
 
       - name: Run Tests
-        run: yarn hardhat test
+        run: yarn test
+
+      - name: Generate coverage
+        run: yarn coverage
+
+      - uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }} # required
+          slug: detrash/detrash-contract

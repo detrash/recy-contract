@@ -9,11 +9,12 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 
 /**
- * @title Friend of Clean World Certificate ERC721 contract
+ * @title Friend of the Clean World Certificate ERC721 contract
  * @author Edward Lee - [neddy34](https://github.com/neddy34)
- * @notice This contract is used to mint and burn NFTs for the Friend of Clean World Certificate.
+ * @notice The FCW (Friend of the Clean World) Status is a dynamic recognition
+ * for companies demonstrating effective and auditable sustainable waste management practices.
  */
-contract FCWERC721 is ERC721URIStorage, ERC721Enumerable, AccessControl {
+contract FCWStatus is ERC721URIStorage, ERC721Enumerable, AccessControl {
     using Counters for Counters.Counter;
     Counters.Counter private _tokenIds;
 
@@ -25,7 +26,7 @@ contract FCWERC721 is ERC721URIStorage, ERC721Enumerable, AccessControl {
 
     error OnlyOneNFTPerAccount();
 
-    constructor() ERC721("DeTrash Certificate", "DeTrash") {
+    constructor() ERC721("FCW Status", "FCWCert") {
         _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _setupRole(MINTER_ROLE, _msgSender());
         _setupRole(BURNER_ROLE, _msgSender());

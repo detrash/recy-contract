@@ -1,5 +1,8 @@
 # RECY Network smart contract
 
+[![CI](https://github.com/detrash/detrash-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/detrash/detrash-contract/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/detrash/detrash-contract/graph/badge.svg?token=MDYJB5LOWI)](https://codecov.io/gh/detrash/detrash-contract)
+
 This project is bootstrapped with Hardhat, a development environment for Ethereum smart contracts.
 
 ## Development
@@ -35,22 +38,22 @@ This project is bootstrapped with Hardhat, a development environment for Ethereu
 > [!NOTE]
 > Currently arguments for deployment are hardcoded in the scripts. You can change them in the scripts before deploying.
 
-   | Script            | Description                 | Arguments                  |
-   | ----------------- | --------------------------- | -------------------------- |
-   | `deploy-all`      | Deploy all contracts        |                            |
-   | `deploy-crecy`    | Deploy CRECY ERC20 contract | totalSupply, initialSupply |
-   | `deploy-fcw`      | Deploy FCW ERC721 contract  |                            |
-   | `deploy-timelock` | Deploy timelock contract    | crecy address              |
+| Script            | Description                 | Arguments                  |
+| ----------------- | --------------------------- | -------------------------- |
+| `deploy-all`      | Deploy all contracts        |                            |
+| `deploy-crecy`    | Deploy CRECY ERC20 contract | totalSupply, initialSupply |
+| `deploy-fcw`      | Deploy FCW ERC721 contract  |                            |
+| `deploy-timelock` | Deploy timelock contract    | crecy address              |
 
-   | Network     | Description      |
-   | ----------- | ---------------- |
-   | `localhost` | Hardhat localnet |
-   | `celo`      | CELO mainnet     |
-   | `alfajores` | CELO testnet     |
+| Network     | Description      |
+| ----------- | ---------------- |
+| `localhost` | Hardhat localnet |
+| `celo`      | CELO mainnet     |
+| `alfajores` | CELO testnet     |
 
-   ```bash
-   yarn hardhat run scripts/<script>.ts --network <network>
-   ```
+```bash
+yarn hardhat run scripts/<script>.ts --network <network>
+```
 
 ## Deployed Addresses
 
