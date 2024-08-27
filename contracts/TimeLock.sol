@@ -6,9 +6,7 @@ import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import {SafeERC20Upgradeable, IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "hardhat/console.sol";
-
+import { GenericTypedMessage } from "./GenericTypedMessage.sol";
 /**
  * @title TimeLock contract for cRECY ERC20 token
  * @author Edward Lee - [neddy34](https://github.com/neddy34)
@@ -19,9 +17,12 @@ contract TimeLock is
     Initializable,
     PausableUpgradeable,
     OwnableUpgradeable,
-    ReentrancyGuardUpgradeable
+    ReentrancyGuardUpgradeable,
+    GenericTypedMessage
 {
     using SafeERC20Upgradeable for IERC20Upgradeable;
+    bytes32 public constant _LOCK_TYPEHASH = keccak256("Certificate(bytes32 institution,uint8 tons,uint16 baseYear,uint8 baseMonth,uint8 timespan,address signer,bytes32 authorization,uint32 deadline)");
+
 
     struct Lock {
         uint256 amount;
@@ -35,6 +36,23 @@ contract TimeLock is
         uint256 totalLocked;
         uint256 totalUnlocked;
         mapping(uint256 => Lock) locks;
+    }
+
+    struct Certificate {
+        bytes32 institution;
+        uint8 tons;
+        uint16 baseYear;
+        uint8 baseMonth;
+        uint8 timespan;
+        address signer;
+        bytes32 authorization;
+        uint32 deadline;
+    }
+
+    struct Signature {
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
     }
 
     IERC20Upgradeable public cRECY;
@@ -60,6 +78,11 @@ contract TimeLock is
         uint256 unlockedAt,
         uint256 lockIndex
     );
+    event CertificateCreated(
+        Certificate certificate,
+        address lockSigner,
+        uint256 valueLocked
+    );
 
     error InLockPeriod(uint256 unlockTime);
     error AlreadyUnlocked();
@@ -73,6 +96,7 @@ contract TimeLock is
         __Pausable_init();
         __Ownable_init();
         __ReentrancyGuard_init();
+        __GenericTypedMessage_init();
 
         cRECY = IERC20Upgradeable(_cRECY);
         defaultLockPeriod = 2 * 365 days;
@@ -83,10 +107,52 @@ contract TimeLock is
      * @notice Lock cRECY tokens for a period of time
      * @param amount token amount to lock
      */
-    function lock(uint256 amount) external whenNotPaused nonReentrant {
-        _registerLocker(_msgSender());
+    function lock(
+        uint256 amount, 
+        Certificate calldata cert, 
+        Signature calldata sig
+    ) 
+        external 
+        whenNotPaused
+        nonReentrant 
+    {
+        require(cert.baseMonth < 12, "TimeLock: certificate month is invalid");
+        bytes32 structHash = keccak256(
+            abi.encode(
+                _LOCK_TYPEHASH,
+                cert.institution,
+                cert.tons,
+                cert.baseYear,
+                cert.baseMonth,
+                cert.timespan,
+                cert.signer,
+                cert.authorization,
+                cert.deadline
+            )
+        );
+        _verifyTypedMessage(
+            structHash,
+            cert.authorization,
+            cert.deadline,
+            cert.signer,
+            sig.v,
+            sig.r,
+            sig.s
+        );
+        require(cert.signer == owner(), "TimeLock: only owner can sign certificates");
 
+        _registerLocker(_msgSender());
         _lock(_msgSender(), amount);
+        _burnMessage(
+            structHash,
+            cert.authorization,
+            cert.deadline,
+            cert.signer,
+            sig.v,
+            sig.r,
+            sig.s
+        );
+        emit CertificateCreated(cert, msg.sender, amount);
     }
 
     /**

@@ -22,6 +22,7 @@
     "chai-ethers": "0.0.1"
   },
   "devDependencies": {
+    "@metamask/eth-sig-util": "^7.0.3",
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.7",
     "@nomicfoundation/hardhat-ethers": "^3.0.6",
     "@nomicfoundation/hardhat-ignition": "^0.15.5",
@@ -45,7 +46,7 @@
     "hardhat-gas-reporter": "^1.0.8",
     "husky": "^6.0.0",
     "mocha": "^9.0.0",
-    "moment": "^2.29.1",
+    "moment": "^2.30.1",
     "prettier": "^2.5.1",
     "prettier-plugin-solidity": "^1.0.0",
     "solhint": "^3.3.6",
