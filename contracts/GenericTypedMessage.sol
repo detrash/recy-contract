@@ -48,7 +48,7 @@ contract GenericTypedMessage is EIP712Upgradeable {
     function _verifyTypedMessage(
         bytes32 _structHash,
         bytes32 _authorization,
-        uint32 _deadline,
+        uint256 _deadline,
         address _signer,
         uint8 _v,
         bytes32 _r,
@@ -67,7 +67,7 @@ contract GenericTypedMessage is EIP712Upgradeable {
         bytes32 hash = _hashTypedDataV4(_structHash);
 
         address signer = ECDSAUpgradeable.recover(hash, _v, _r, _s);
-        require(signer == _signer, "GenericTypedMessage: signer does not match parameter");
+        require(signer == _signer, "GenericTypedMessage: signer does not match signature");
 
         return true;
     }
@@ -85,7 +85,7 @@ contract GenericTypedMessage is EIP712Upgradeable {
     function _burnMessage(
         bytes32 _structHash,
         bytes32 _authorization,
-        uint32 _deadline,
+        uint256 _deadline,
         address _signer,
         uint8 _v,
         bytes32 _r,

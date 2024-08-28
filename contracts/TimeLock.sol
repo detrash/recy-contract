@@ -21,8 +21,8 @@ contract TimeLock is
     GenericTypedMessage
 {
     using SafeERC20Upgradeable for IERC20Upgradeable;
-    bytes32 public constant _LOCK_TYPEHASH = keccak256("Certificate(bytes32 institution,uint8 tons,uint16 baseYear,uint8 baseMonth,uint8 timespan,address signer,bytes32 authorization,uint32 deadline)");
-
+    bytes32 public constant _LOCK_TYPEHASH = keccak256("Certificate(bytes32 institution,uint8 tons,uint16 baseYear,uint8 baseMonth,uint8 timespan,address signer,bytes32 authorization,uint256 deadline)");
+    bytes32 public constant _UNLOCK_TYPEHASH = keccak256("UnlockAuthorization(address lockAccount,address signer,bytes32 authorization,uint256 deadline)");
 
     struct Lock {
         uint256 amount;
@@ -46,7 +46,14 @@ contract TimeLock is
         uint8 timespan;
         address signer;
         bytes32 authorization;
-        uint32 deadline;
+        uint256 deadline;
+    }
+
+    struct UnlockAuthorization {
+        address lockAccount;
+        address signer;
+        bytes32 authorization;
+        uint256 deadline;
     }
 
     struct Signature {
@@ -159,8 +166,42 @@ contract TimeLock is
      * @notice Unlock cRECY tokens
      * @param lockIndex index of the lock to unlock
      */
-    function unlock(uint256 lockIndex) external whenNotPaused nonReentrant {
+    function unlock(
+        uint256 lockIndex,
+        UnlockAuthorization calldata authorization,
+        Signature calldata sig
+    ) 
+        external whenNotPaused nonReentrant 
+    {
+        bytes32 structHash = keccak256(
+            abi.encode(
+                _UNLOCK_TYPEHASH,
+                authorization.lockAccount,
+                authorization.signer,
+                authorization.authorization,
+                authorization.deadline
+            )
+        );
+        _verifyTypedMessage(
+            structHash,
+            authorization.authorization,
+            authorization.deadline,
+            authorization.signer,
+            sig.v,
+            sig.r,
+            sig.s
+        );
+        require(authorization.signer == owner(), "TimeLock: only owner can authorize unlock");
         _unlock(_msgSender(), lockIndex);
+        _burnMessage(
+            structHash,
+            authorization.authorization,
+            authorization.deadline,
+            authorization.signer,
+            sig.v,
+            sig.r,
+            sig.s
+        );
     }
 
     /**
