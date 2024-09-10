@@ -5,7 +5,7 @@ import crypto from "crypto";
 import moment from "moment";
 import { fromRpcSig, ecrecover, toBuffer, ECDSASignature } from 'ethereumjs-util';
 
-import { CRecy, TimeLock } from "../typechain-types";
+import { CRecy, TimeLock, RecyCertificate } from "../typechain-types";
 import { domainSeparator } from "./helpers/domainSeparator";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { TypedDataDomain, TypedDataField } from "ethers";
@@ -13,6 +13,7 @@ import { TypedDataDomain, TypedDataField } from "ethers";
 describe("TimeLock", function () {
   let timeLock: TimeLock
   let cRECY: CRecy
+  let recyCertificate: RecyCertificate
   let evmSigCert: ECDSASignature
   let evmSigUnlockAuth: ECDSASignature
   let certTypedMessage: {
@@ -25,7 +26,7 @@ describe("TimeLock", function () {
     types: Record<string, TypedDataField[]>,
     message: Record<string, any>
   }
-  let certificate: TimeLock.CertificateStruct
+  let certificate: TimeLock.CertificateAuthorizationStruct
   let unlockAuth: TimeLock.UnlockAuthorizationStruct
   let timeLockAddress: string
   let owner: HardhatEthersSigner, ali: HardhatEthersSigner, bob: HardhatEthersSigner
@@ -35,18 +36,31 @@ describe("TimeLock", function () {
 
     const TimeLock__factory = await ethers.getContractFactory("TimeLock");
     const CRecy = await ethers.getContractFactory("CRecy");
+    const RecyCertificate = await ethers.getContractFactory("RecyCertificate")
     const FCWStatus__factory = await ethers.getContractFactory("FCWStatus");
 
     cRECY = await CRecy.deploy(1000, 1000);
     await cRECY.transfer(ali.address, 200);
     await cRECY.transfer(bob.address, 200);
 
-    const fcwStatus = await FCWStatus__factory.deploy();
-    timeLock = (await upgrades.deployProxy(TimeLock__factory, [
-      await cRECY.getAddress(),
-    ])) as unknown as TimeLock;
-    timeLockAddress = await timeLock.getAddress()
 
+    const fcwStatus = await FCWStatus__factory.deploy();
+    recyCertificate = await RecyCertificate.deploy()
+    timeLock = (await upgrades.deployProxy(TimeLock__factory, [
+      await cRECY.getAddress(), await recyCertificate.getAddress()
+    ])) as unknown as TimeLock;
+    
+    await recyCertificate.initialize()
+    const MINTER_ROLE = ethers.keccak256(Buffer.from('MINTER_ROLE'))
+    const DEFAULT_ADMIN_ROLE = ethers.keccak256(Buffer.from('DEFAULT_ADMIN_ROLE'))
+    const BURNER_ROLE = ethers.keccak256(Buffer.from('BURNER_ROLE'))
+    const OPERATOR_ROLE = ethers.keccak256(Buffer.from('OPERATOR_ROLE'))
+    
+    timeLockAddress = await timeLock.getAddress()
+    await recyCertificate.grantRole(MINTER_ROLE, timeLockAddress)
+    await recyCertificate.grantRole(OPERATOR_ROLE, timeLockAddress)
+
+    await timeLock.setupTraits()
     return { cRECY, fcwStatus, timeLock, owner, ali, bob };
   }
 
@@ -72,7 +86,7 @@ describe("TimeLock", function () {
         deadline: moment().add(1, 'day').format('X')
       },
       types: {
-        Certificate: [
+        CertificateAuthorization: [
           { name: "institution", type: "bytes32" },
           { name: "tons", type: "uint8" },
           { name: "baseYear", type: "uint16" },
@@ -117,7 +131,7 @@ describe("TimeLock", function () {
     evmSigCert = fromRpcSig(sigCert);
     evmSigUnlockAuth = fromRpcSig(sigUnlockAuth);
 
-    certificate = certTypedMessage.message as unknown as TimeLock.CertificateStruct
+    certificate = certTypedMessage.message as unknown as TimeLock.CertificateAuthorizationStruct
     unlockAuth = unlockAuthTypedMessage.message as unknown as TimeLock.UnlockAuthorizationStruct
 
   });
@@ -145,6 +159,7 @@ describe("TimeLock", function () {
       await timeLock.pause()
       await expect(timeLock.lock(lockAmount, certificate, evmSigCert)).to.be.revertedWith('Pausable: paused');
     })
+
     it("should lock token", async () => {
       const lockAmount = 100;
   
@@ -153,49 +168,13 @@ describe("TimeLock", function () {
   
       const lockedBalance = await cRECY.balanceOf(timeLock.getAddress());
       expect(lockedBalance).to.be.equal(lockAmount);
+
+      const status = await recyCertificate.getAttribute("1", "status")
+      expect(status).to.be.equal("ACTIVE")
     });
   })
 
   describe('Unlock operations', () => {
-    const getSignedUnlockAuth = async (deadline: BigInt) => {
-      const domain = {
-        chainId: 31337,
-        name: "GenericTypedMessage",
-        version: "1",
-        verifyingContract: await timeLock.getAddress()
-      }
-      unlockAuthTypedMessage = {
-        domain,
-        message: {
-          lockAccount: ali.address,
-          signer: owner.address,
-          authorization: `0x${crypto.randomBytes(32).toString('hex')}`,
-          deadline: moment().add(deadline.toString(), 'day').format('X')
-        },
-        types: {
-          UnlockAuthorization: [
-            { name: "lockAccount", type: "address" },
-            { name: "signer", type: "address" },
-            { name: "authorization", type: "bytes32" },
-            { name: "deadline", type: "uint256" },
-          ]
-        }
-      }
-
-      const sigUnlockAuth = await owner.signTypedData(
-        unlockAuthTypedMessage.domain,
-        unlockAuthTypedMessage.types,
-        unlockAuthTypedMessage.message
-      )
-      evmSigUnlockAuth = fromRpcSig(sigUnlockAuth);
-      unlockAuth = unlockAuthTypedMessage.message as unknown as TimeLock.UnlockAuthorizationStruct
-
-      return {
-        evmSign: evmSigUnlockAuth,
-        sign: sigUnlockAuth,
-        unlockAuth
-      }
-    }
     beforeEach(async () => {
       snapshot = await takeSnapshot()
     })
@@ -220,10 +199,7 @@ describe("TimeLock", function () {
   
       expect(lastLock.amount).to.be.equal(lockAmount);
   
-      const defaultLockPeriod = await timeLock.defaultLockPeriod();
-      const auth = await getSignedUnlockAuth(defaultLockPeriod)
-
-      await expect(timeLock.unlock(lockIndex, auth.unlockAuth, auth.evmSign)).to.be.revertedWithCustomError(
+      await expect(timeLock.unlock(lockIndex)).to.be.revertedWithCustomError(
         timeLock,
         "InLockPeriod"
       );
@@ -250,47 +226,14 @@ describe("TimeLock", function () {
       const defaultLockPeriod = await timeLock.defaultLockPeriod();
   
       await time.increase(defaultLockPeriod);
-      const auth = await getSignedUnlockAuth(defaultLockPeriod)
-  
-      await timeLock.unlock(lockIndex, auth.unlockAuth, auth.evmSign);
+      await timeLock.unlock(lockIndex);
   
       const lockedBalance = await cRECY.balanceOf(timeLock.getAddress());
       expect(lockedBalance).to.be.equal(0);
-    });
-  
-    it("should unlock token earlier upon admin allowance", async () => {
-      const lockAmount = 100;
-      await cRECY.connect(ali).approve(timeLock.getAddress(), lockAmount);
-      await timeLock.connect(ali).lock(lockAmount, certificate, evmSigCert);
-  
-      const events = await timeLock.queryFilter(timeLock.filters.Locked, -1);
-      expect(events.length).to.be.equal(1);
-  
-      const lockEvent = events[0];
-      const lockIndex = lockEvent.args.lockIndex;
-  
-      expect(lockIndex).to.be.equal(0);
-      expect(lockEvent.args.amount).to.be.equal(lockAmount);
-  
-      const lastLock = await timeLock.getUserLastLock(ali.address);
-      expect(lastLock.amount).to.be.equal(lockAmount);
 
-      const earlyLockPeriod = await timeLock.earlyLockPeriod();
-      const auth = await getSignedUnlockAuth(earlyLockPeriod)
-  
-      await expect(
-        timeLock.connect(ali).unlock(lockIndex, auth.unlockAuth, auth.evmSign)
-      ).to.be.revertedWithCustomError(timeLock, "InLockPeriod");
-  
-      // owner allows early withdrawal
-      await timeLock.setEarlyWithdrawal(ali.address, lockIndex, true);
-  
-      await time.increase(earlyLockPeriod);
-  
-      await timeLock.connect(ali).unlock(lockIndex, auth.unlockAuth, auth.evmSign);
-  
-      const lockedBalance = await cRECY.balanceOf(timeLock.getAddress());
-      expect(lockedBalance).to.be.equal(0);
+      const status = await recyCertificate.getAttribute("1", "status")
+      expect(status).to.be.equal("COMPLETE")
     });
+  
   })
 });

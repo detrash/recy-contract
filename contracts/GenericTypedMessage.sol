@@ -7,6 +7,8 @@ import "@openzeppelin/contracts-upgradeable/utils/cryptography/ECDSAUpgradeable.
 /**
  * @dev Helper contract to verify signed typed messages
  */
+import "hardhat/console.sol";
+
 contract GenericTypedMessage is EIP712Upgradeable {
 
     mapping(address => mapping(bytes32 => bool)) internal _authorizationStates;

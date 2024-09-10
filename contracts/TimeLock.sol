@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
+pragma experimental ABIEncoderV2;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import {SafeERC20Upgradeable, IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+import "./RecyCertificate.sol";
 import { GenericTypedMessage } from "./GenericTypedMessage.sol";
 /**
  * @title TimeLock contract for cRECY ERC20 token
@@ -21,9 +23,13 @@ contract TimeLock is
     GenericTypedMessage
 {
     using SafeERC20Upgradeable for IERC20Upgradeable;
-    bytes32 public constant _LOCK_TYPEHASH = keccak256("Certificate(bytes32 institution,uint8 tons,uint16 baseYear,uint8 baseMonth,uint8 timespan,address signer,bytes32 authorization,uint256 deadline)");
-    bytes32 public constant _UNLOCK_TYPEHASH = keccak256("UnlockAuthorization(address lockAccount,address signer,bytes32 authorization,uint256 deadline)");
+    using Strings for uint256;
+    using Strings for uint8;
+    using Strings for uint16;
+    using Strings for uint32;
 
+    bytes32 public constant _LOCK_TYPEHASH = keccak256("CertificateAuthorization(bytes32 institution,uint8 tons,uint16 baseYear,uint8 baseMonth,uint8 timespan,address signer,bytes32 authorization,uint256 deadline)");
+    bytes32 public constant _UNLOCK_TYPEHASH = keccak256("UnlockAuthorization(address lockAccount,address signer,bytes32 authorization,uint256 deadline)");
     struct Lock {
         uint256 amount;
         uint256 lockedAt;
@@ -38,19 +44,12 @@ contract TimeLock is
         mapping(uint256 => Lock) locks;
     }
 
-    struct Certificate {
+    struct CertificateAuthorization {
         bytes32 institution;
         uint8 tons;
         uint16 baseYear;
         uint8 baseMonth;
         uint8 timespan;
-        address signer;
-        bytes32 authorization;
-        uint256 deadline;
-    }
-
-    struct UnlockAuthorization {
-        address lockAccount;
         address signer;
         bytes32 authorization;
         uint256 deadline;
@@ -63,15 +62,16 @@ contract TimeLock is
     }
 
     IERC20Upgradeable public cRECY;
+    RecyCertificate public certNFT;
 
     uint256 public defaultLockPeriod;
-    uint256 public earlyLockPeriod;
     uint256 public totalLocked;
     uint256 public totalUnlocked;
     uint256 public totalLockers;
 
     mapping(address => UserLock) private _userLocks;
     mapping(uint256 => address) private _lockersByIndex;
+    mapping(uint256 => uint256) private _lockToToken;
 
     event Locked(
         address indexed user,
@@ -86,7 +86,7 @@ contract TimeLock is
         uint256 lockIndex
     );
     event CertificateCreated(
-        Certificate certificate,
+        CertificateAuthorization certificate,
         address lockSigner,
         uint256 valueLocked
     );
@@ -94,20 +94,36 @@ contract TimeLock is
     error InLockPeriod(uint256 unlockTime);
     error AlreadyUnlocked();
 
+    string public constant INITIAL_SCHEMA = "lock-v0";
+    string public defaultSchema;
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
 
-    function initialize(address _cRECY) external initializer {
+    function initialize(address _cRECY, address _recyCert) external initializer {
         __Pausable_init();
         __Ownable_init();
         __ReentrancyGuard_init();
         __GenericTypedMessage_init();
 
         cRECY = IERC20Upgradeable(_cRECY);
+        certNFT = RecyCertificate(_recyCert);
         defaultLockPeriod = 2 * 365 days;
-        earlyLockPeriod = 1 * 365 days;
+    }
+
+    function setupTraits() external onlyOwner {
+        ERC721GenericMetadata.Trait[] memory traits = new ERC721GenericMetadata.Trait[](6);
+        traits[0] = IGenericMetadata.Trait({ key: "institution", value: "" });
+        traits[1] = IGenericMetadata.Trait({ key: "tons", value: "" });
+        traits[2] = IGenericMetadata.Trait({ key: "baseYear", value: "" });
+        traits[3] = IGenericMetadata.Trait({ key: "baseMonth", value: "" });
+        traits[4] = IGenericMetadata.Trait({ key: "timespan", value: "" });
+        traits[5] = IGenericMetadata.Trait({ key: "status", value: "ACTIVE" });
+        certNFT.setSchema(INITIAL_SCHEMA, traits);
+
+        defaultSchema = INITIAL_SCHEMA;
     }
 
     /**
@@ -116,12 +132,13 @@ contract TimeLock is
      */
     function lock(
         uint256 amount, 
-        Certificate calldata cert, 
+        CertificateAuthorization calldata cert, 
         Signature calldata sig
     ) 
         external 
         whenNotPaused
         nonReentrant 
+        returns (uint256)
     {
         require(cert.baseMonth < 12, "TimeLock: certificate month is invalid");
         bytes32 structHash = keccak256(
@@ -149,7 +166,7 @@ contract TimeLock is
         require(cert.signer == owner(), "TimeLock: only owner can sign certificates");
 
         _registerLocker(_msgSender());
-        _lock(_msgSender(), amount);
+        uint256 lockId = _lock(_msgSender(), amount, cert);
         _burnMessage(
             structHash,
             cert.authorization,
@@ -159,7 +176,7 @@ contract TimeLock is
             sig.r,
             sig.s
         );
-        emit CertificateCreated(cert, msg.sender, amount);
+        return lockId;        
     }
 
     /**
@@ -167,41 +184,14 @@ contract TimeLock is
      * @param lockIndex index of the lock to unlock
      */
     function unlock(
-        uint256 lockIndex,
-        UnlockAuthorization calldata authorization,
-        Signature calldata sig
+        uint256 lockIndex
     ) 
         external whenNotPaused nonReentrant 
     {
-        bytes32 structHash = keccak256(
-            abi.encode(
-                _UNLOCK_TYPEHASH,
-                authorization.lockAccount,
-                authorization.signer,
-                authorization.authorization,
-                authorization.deadline
-            )
-        );
-        _verifyTypedMessage(
-            structHash,
-            authorization.authorization,
-            authorization.deadline,
-            authorization.signer,
-            sig.v,
-            sig.r,
-            sig.s
-        );
-        require(authorization.signer == owner(), "TimeLock: only owner can authorize unlock");
         _unlock(_msgSender(), lockIndex);
-        _burnMessage(
-            structHash,
-            authorization.authorization,
-            authorization.deadline,
-            authorization.signer,
-            sig.v,
-            sig.r,
-            sig.s
-        );
+
+        uint256 tokenId = _lockToToken[lockIndex];
+        certNFT.setAttribute(tokenId, "status", "COMPLETE");
     }
 
     /**
@@ -216,33 +206,6 @@ contract TimeLock is
      */
     function unpause() public onlyOwner {
         _unpause();
-    }
-
-    /**
-     * @notice Set early withdrawal allowed for a lock
-     * @param user address of the user
-     * @param index index of the lock
-     * @param allowed true if early withdrawal is allowed
-     */
-    function setEarlyWithdrawal(
-        address user,
-        uint256 index,
-        bool allowed
-    ) external onlyOwner {
-        _userLocks[user].locks[index].earlyWithdrawalAllowed = allowed;
-    }
-
-    /**
-     * @notice Set lock periods
-     * @param defaultLockPeriodInDays new default lock period in days
-     * @param earlyLockPeriodInDays new early lock period in days
-     */
-    function setLockPeriods(
-        uint256 defaultLockPeriodInDays,
-        uint256 earlyLockPeriodInDays
-    ) external onlyOwner {
-        defaultLockPeriod = defaultLockPeriodInDays * 1 days;
-        earlyLockPeriod = earlyLockPeriodInDays * 1 days;
     }
 
     /**
@@ -300,7 +263,14 @@ contract TimeLock is
         }
     }
 
-    function _lock(address _user, uint256 _amount) private {
+    function _lock(
+        address _user, 
+        uint256 _amount,
+        CertificateAuthorization memory cert
+    ) 
+        private 
+        returns (uint256) 
+    {
         cRECY.safeTransferFrom(_user, address(this), _amount);
         uint256 lockedAt = block.timestamp;
         Lock memory lockToAdd = Lock({
@@ -317,7 +287,22 @@ contract TimeLock is
 
         totalLocked += _amount;
 
+        uint256 tokenId = certNFT.mint(msg.sender);
+        certNFT.assemble(tokenId, defaultSchema);
+
+        certNFT.setAttribute(tokenId, "institution", string(abi.encodePacked(cert.institution)));
+        certNFT.setAttribute(tokenId, "tons", cert.tons.toString());
+        certNFT.setAttribute(tokenId, "baseYear", cert.baseYear.toString());
+        certNFT.setAttribute(tokenId, "baseMonth", cert.baseMonth.toString());
+        certNFT.setAttribute(tokenId, "timespan", cert.timespan.toString());
+        certNFT.setAttribute(tokenId, "status", "ACTIVE");
+
+        _lockToToken[lockIndex] = tokenId;
+
+        emit CertificateCreated(cert, msg.sender, _amount);
         emit Locked(_user, _amount, lockedAt, lockIndex);
+
+        return lockIndex;
     }
 
     function _unlock(address _user, uint256 _lockIndex) private {
@@ -327,12 +312,7 @@ contract TimeLock is
             revert AlreadyUnlocked();
         }
 
-        uint256 unlockTime;
-        if (userLock.earlyWithdrawalAllowed) {
-            unlockTime = userLock.lockedAt + earlyLockPeriod;
-        } else {
-            unlockTime = userLock.lockedAt + defaultLockPeriod;
-        }
+        uint256 unlockTime = userLock.lockedAt + defaultLockPeriod;
 
         if (unlockTime > block.timestamp) {
             revert InLockPeriod(unlockTime);
@@ -349,4 +329,14 @@ contract TimeLock is
 
         emit Unlocked(_user, userLock.amount, block.timestamp, _lockIndex);
     }
+
+    function setDefaultSchema(
+        string memory _schema
+    )
+        external
+        onlyOwner
+    {
+        defaultSchema = _schema;
+    }
+    
 }
