@@ -109,7 +109,7 @@ contract TimeLock is
         _disableInitializers();
     }
 
-    function initialize(address _cRECY, address _recyCert) external initializer {
+    function initialize(address _cRECY, address _recyCert, address admin) external initializer {
         __Pausable_init();
         __AccessControlEnumerable_init();
         __ReentrancyGuard_init();
@@ -120,7 +120,7 @@ contract TimeLock is
         defaultLockPeriod = 2 * 365 days;
 
         _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
-        _setupRole(ADMIN_ROLE, _msgSender());
+        _setupRole(ADMIN_ROLE, admin);
     }
 
     function setupTraits() external onlyRole(ADMIN_ROLE) {

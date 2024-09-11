@@ -46,7 +46,7 @@ describe("TimeLock", function () {
     const fcwStatus = await FCWStatus__factory.deploy();
     recyCertificate = await RecyCertificate.deploy()
     timeLock = (await upgrades.deployProxy(TimeLock__factory, [
-      await cRECY.getAddress(), await recyCertificate.getAddress()
+      await cRECY.getAddress(), await recyCertificate.getAddress(), admin.address
     ])) as unknown as TimeLock;
     
     await recyCertificate.initialize(admin.address)
