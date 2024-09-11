@@ -302,7 +302,7 @@ contract TimeLock is
 
         totalLocked += _amount;
 
-        uint256 tokenId = certNFT.mint(msg.sender);
+        uint256 tokenId = certNFT.mint(_msgSender());
         certNFT.assemble(tokenId, defaultSchema);
 
         certNFT.setAttribute(tokenId, "institution", string(abi.encodePacked(cert.institution)));
@@ -314,7 +314,7 @@ contract TimeLock is
 
         _lockToToken[lockIndex] = tokenId;
 
-        emit CertificateCreated(cert, msg.sender, _amount);
+        emit CertificateCreated(cert, _msgSender(), _amount);
         emit Locked(_user, _amount, lockedAt, lockIndex);
 
         return lockIndex;
