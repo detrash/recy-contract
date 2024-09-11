@@ -27,12 +27,11 @@ describe("TimeLock", function () {
     message: Record<string, any>
   }
   let certificate: TimeLock.CertificateAuthorizationStruct
-  let unlockAuth: TimeLock.UnlockAuthorizationStruct
   let timeLockAddress: string
-  let owner: HardhatEthersSigner, ali: HardhatEthersSigner, bob: HardhatEthersSigner
+  let admin: HardhatEthersSigner, alice: HardhatEthersSigner, bob: HardhatEthersSigner
   let snapshot: SnapshotRestorer
   async function deployFixture() {
-    [owner, ali, bob] = await ethers.getSigners();
+    [admin, alice, bob] = await ethers.getSigners();
 
     const TimeLock__factory = await ethers.getContractFactory("TimeLock");
     const CRecy = await ethers.getContractFactory("CRecy");
@@ -40,7 +39,7 @@ describe("TimeLock", function () {
     const FCWStatus__factory = await ethers.getContractFactory("FCWStatus");
 
     cRECY = await CRecy.deploy(1000, 1000);
-    await cRECY.transfer(ali.address, 200);
+    await cRECY.transfer(alice.address, 200);
     await cRECY.transfer(bob.address, 200);
 
 
@@ -50,18 +49,21 @@ describe("TimeLock", function () {
       await cRECY.getAddress(), await recyCertificate.getAddress()
     ])) as unknown as TimeLock;
     
-    await recyCertificate.initialize()
+    await recyCertificate.initialize(admin.address)
     const MINTER_ROLE = ethers.keccak256(Buffer.from('MINTER_ROLE'))
     const DEFAULT_ADMIN_ROLE = ethers.keccak256(Buffer.from('DEFAULT_ADMIN_ROLE'))
     const BURNER_ROLE = ethers.keccak256(Buffer.from('BURNER_ROLE'))
     const OPERATOR_ROLE = ethers.keccak256(Buffer.from('OPERATOR_ROLE'))
+    const PAUSER_ROLE = ethers.keccak256(Buffer.from('PAUSER_ROLE'))
     
     timeLockAddress = await timeLock.getAddress()
     await recyCertificate.grantRole(MINTER_ROLE, timeLockAddress)
     await recyCertificate.grantRole(OPERATOR_ROLE, timeLockAddress)
 
+    await timeLock.grantRole(OPERATOR_ROLE, admin.address)
+    await timeLock.grantRole(PAUSER_ROLE, admin.address)
     await timeLock.setupTraits()
-    return { cRECY, fcwStatus, timeLock, owner, ali, bob };
+    return { cRECY, fcwStatus, timeLock, admin, alice, bob };
   }
 
   beforeEach( async () => {
@@ -81,7 +83,7 @@ describe("TimeLock", function () {
         baseYear: '2024',
         baseMonth: '1',
         timespan: '12',
-        signer: owner.address,
+        signer: admin.address,
         authorization: `0x${crypto.randomBytes(32).toString('hex')}`,
         deadline: moment().add(1, 'day').format('X')
       },
@@ -98,41 +100,16 @@ describe("TimeLock", function () {
         ],
       },
     };
-    unlockAuthTypedMessage = {
-      domain,
-      message: {
-        lockAccount: ali.address,
-        signer: owner.address,
-        authorization: `0x${crypto.randomBytes(32).toString('hex')}`,
-        deadline: moment().add(1, 'day').format('X')
-      },
-      types: {
-        UnlockAuthorization: [
-          { name: "lockAccount", type: "address" },
-          { name: "signer", type: "address" },
-          { name: "authorization", type: "bytes32" },
-          { name: "deadline", type: "uint32" },
-        ]
-      }
-    }
 
-    const sigCert = await owner.signTypedData(
+    const sigCert = await admin.signTypedData(
       certTypedMessage.domain,
       certTypedMessage.types,
       certTypedMessage.message
     )
 
-    const sigUnlockAuth = await owner.signTypedData(
-      unlockAuthTypedMessage.domain,
-      unlockAuthTypedMessage.types,
-      unlockAuthTypedMessage.message
-    )
-
     evmSigCert = fromRpcSig(sigCert);
-    evmSigUnlockAuth = fromRpcSig(sigUnlockAuth);
 
     certificate = certTypedMessage.message as unknown as TimeLock.CertificateAuthorizationStruct
-    unlockAuth = unlockAuthTypedMessage.message as unknown as TimeLock.UnlockAuthorizationStruct
 
   });
 
@@ -160,11 +137,31 @@ describe("TimeLock", function () {
       await expect(timeLock.lock(lockAmount, certificate, evmSigCert)).to.be.revertedWith('Pausable: paused');
     })
 
+    it('Should revert if signer has no role', async () => {
+      const message = {
+        ...certTypedMessage.message,
+        signer: alice.address
+      } as unknown as TimeLock.CertificateAuthorizationStruct
+      const typedMessage = await alice.signTypedData(
+        certTypedMessage.domain,
+        certTypedMessage.types,
+        message
+      )
+      const signedCert = fromRpcSig(typedMessage)
+
+      const lockAmount = 100;
+      await cRECY.approve(timeLock.getAddress(), lockAmount);
+  
+      await expect(
+        timeLock.lock(lockAmount, message, signedCert)
+      ).to.be.revertedWithCustomError(timeLock, "InvalidSigner")
+    })
+
     it("should lock token", async () => {
       const lockAmount = 100;
   
-      await cRECY.connect(ali).approve(timeLock.getAddress(), lockAmount);
-      await timeLock.connect(ali).lock(lockAmount, certificate, evmSigCert);
+      await cRECY.connect(alice).approve(timeLock.getAddress(), lockAmount);
+      await timeLock.connect(alice).lock(lockAmount, certificate, evmSigCert);
   
       const lockedBalance = await cRECY.balanceOf(timeLock.getAddress());
       expect(lockedBalance).to.be.equal(lockAmount);
@@ -195,7 +192,7 @@ describe("TimeLock", function () {
       expect(lockIndex).to.be.equal(0);
       expect(lockEvent.args.amount).to.be.equal(lockAmount);
   
-      const lastLock = await timeLock.getUserLastLock(owner.address);
+      const lastLock = await timeLock.getUserLastLock(admin.address);
   
       expect(lastLock.amount).to.be.equal(lockAmount);
   
@@ -219,7 +216,7 @@ describe("TimeLock", function () {
       expect(lockIndex).to.be.equal(0);
       expect(lockEvent.args.amount).to.be.equal(lockAmount);
   
-      const lastLock = await timeLock.getUserLastLock(owner.address);
+      const lastLock = await timeLock.getUserLastLock(admin.address);
   
       expect(lastLock.amount).to.be.equal(lockAmount);
   

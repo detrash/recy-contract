@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import "./ERC721GenericMetadata.sol";
@@ -16,33 +14,32 @@ import "./ERC721GenericMetadata.sol";
  * for a certain period to demonstrate their commitment to reducing waste.
  * This certificate acts as an assurance to stakeholders that the company is actively engaged in sustainable waste practices.
  */
-import "hardhat/console.sol";
-
 contract RecyCertificate is
     ERC721EnumerableUpgradeable, 
     ERC721GenericMetadata {
-    using Counters for Counters.Counter;
-    Counters.Counter private _tokenIds;
+    using CountersUpgradeable for CountersUpgradeable.Counter;
+    CountersUpgradeable.Counter private _tokenIds;
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
 
     error OnlyOneNFTPerAccount();
 
-    function __RecyCertificate_init()  internal 
+    function __RecyCertificate_init(address _admin)  internal 
     {
         __ERC721_init("Recy Certificate", "RecyCert");
-        _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
+        __ERC721GenericMetadata_init();
+        _setupRole(DEFAULT_ADMIN_ROLE, _admin);
         _setupRole(ADMIN_ROLE, _msgSender());
         _setupRole(MINTER_ROLE, _msgSender());
         _setupRole(BURNER_ROLE, _msgSender());
     }
 
-    function initialize() 
+    function initialize(address admin) 
         external
         initializer 
     {
-        __RecyCertificate_init();
+        __RecyCertificate_init(admin);
     }
 
     /**
@@ -83,6 +80,7 @@ contract RecyCertificate is
         uint256 tokenId
     ) internal virtual override {
         // Transfer is disabled
+        revert("Transfer is disabled");
     }
     function _beforeTokenTransfer(
         address from,
@@ -130,7 +128,6 @@ contract RecyCertificate is
     {
         return
             interfaceId == type(AccessControlEnumerableUpgradeable).interfaceId ||
-            interfaceId == type(IERC721).interfaceId ||
             interfaceId == type(IERC721EnumerableUpgradeable).interfaceId ||
             super.supportsInterface(interfaceId);
     }

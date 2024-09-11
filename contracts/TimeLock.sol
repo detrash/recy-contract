@@ -9,6 +9,7 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/se
 import {SafeERC20Upgradeable, IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "./RecyCertificate.sol";
 import { GenericTypedMessage } from "./GenericTypedMessage.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlEnumerableUpgradeable.sol";
 /**
  * @title TimeLock contract for cRECY ERC20 token
  * @author Edward Lee - [neddy34](https://github.com/neddy34)
@@ -18,7 +19,7 @@ import { GenericTypedMessage } from "./GenericTypedMessage.sol";
 contract TimeLock is
     Initializable,
     PausableUpgradeable,
-    OwnableUpgradeable,
+    AccessControlEnumerableUpgradeable,
     ReentrancyGuardUpgradeable,
     GenericTypedMessage
 {
@@ -93,9 +94,15 @@ contract TimeLock is
 
     error InLockPeriod(uint256 unlockTime);
     error AlreadyUnlocked();
+    error InvalidMonth(uint8 month);
+    error InvalidSigner(address signer);
 
     string public constant INITIAL_SCHEMA = "lock-v0";
     string public defaultSchema;
+
+    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -104,16 +111,19 @@ contract TimeLock is
 
     function initialize(address _cRECY, address _recyCert) external initializer {
         __Pausable_init();
-        __Ownable_init();
+        __AccessControlEnumerable_init();
         __ReentrancyGuard_init();
         __GenericTypedMessage_init();
 
         cRECY = IERC20Upgradeable(_cRECY);
         certNFT = RecyCertificate(_recyCert);
         defaultLockPeriod = 2 * 365 days;
+
+        _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
+        _setupRole(ADMIN_ROLE, _msgSender());
     }
 
-    function setupTraits() external onlyOwner {
+    function setupTraits() external onlyRole(ADMIN_ROLE) {
         ERC721GenericMetadata.Trait[] memory traits = new ERC721GenericMetadata.Trait[](6);
         traits[0] = IGenericMetadata.Trait({ key: "institution", value: "" });
         traits[1] = IGenericMetadata.Trait({ key: "tons", value: "" });
@@ -140,7 +150,9 @@ contract TimeLock is
         nonReentrant 
         returns (uint256)
     {
-        require(cert.baseMonth < 12, "TimeLock: certificate month is invalid");
+        if(cert.baseMonth >= 12) {
+            revert InvalidMonth(cert.baseMonth);
+        }
         bytes32 structHash = keccak256(
             abi.encode(
                 _LOCK_TYPEHASH,
@@ -163,7 +175,11 @@ contract TimeLock is
             sig.r,
             sig.s
         );
-        require(cert.signer == owner(), "TimeLock: only owner can sign certificates");
+        // require(cert.signer == owner(), "TimeLock: only owner can sign certificates");
+
+        if (!hasRole(OPERATOR_ROLE, cert.signer) || !hasRole(ADMIN_ROLE, cert.signer)) {
+            revert InvalidSigner(cert.signer);
+        }
 
         _registerLocker(_msgSender());
         uint256 lockId = _lock(_msgSender(), amount, cert);
@@ -197,14 +213,14 @@ contract TimeLock is
     /**
      * @notice Pause the contract
      */
-    function pause() public onlyOwner {
+    function pause() public onlyRole(PAUSER_ROLE) {
         _pause();
     }
 
     /**
      * @notice Unpause the contract
      */
-    function unpause() public onlyOwner {
+    function unpause() public onlyRole(PAUSER_ROLE) {
         _unpause();
     }
 
@@ -334,7 +350,7 @@ contract TimeLock is
         string memory _schema
     )
         external
-        onlyOwner
+        onlyRole(OPERATOR_ROLE)
     {
         defaultSchema = _schema;
     }
